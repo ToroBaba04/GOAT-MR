@@ -1,0 +1,27 @@
+# Environnement virtuel
+venv/
+env/
+.env
+
+# Résultats des expériences (trop lourds et non nécessaires au code)
+results/
+
+# Clés API et config sensible
+config.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
