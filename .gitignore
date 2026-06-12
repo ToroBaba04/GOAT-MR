@@ -8,6 +8,7 @@ results/
 
 # Clés API et config sensible
 config.py
+test_judge.py
 
 # Python
 __pycache__/
