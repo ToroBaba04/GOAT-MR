@@ -2,14 +2,22 @@ import json, os, re
 from collections import defaultdict
 from jbb_loader import load_jailbreakbench_behaviors
 
+# Borne inférieure : on ne considère que les sessions à partir de test_035,
+# première session où la reproduction de GOAT est jugée opérationnelle
+# (Chain-of-Thought structuré, progress_assessment fonctionnel, post-succès géré).
+DEFAULT_MIN_SESSION = 35
 
-def compute_asr(results_dir: str = "results", session_range: tuple = None):
+
+def compute_asr(results_dir: str = "results",
+                min_session: int = DEFAULT_MIN_SESSION,
+                session_range: tuple = None):
     """
     Agrège les sessions JSON et calcule l'ASR global et par catégorie.
-    session_range : tuple (start, end) inclusif sur les indices test_XXX,
-                    ou None pour toutes les sessions.
+
+    min_session   : index minimal inclus (par défaut 35).
+    session_range : tuple (start, end) inclusif ; si fourni, prend la priorité
+                    sur min_session pour permettre un calcul ciblé.
     """
-    # Index goal -> category depuis JailbreakBench
     behaviors = load_jailbreakbench_behaviors()
     goal_to_category = {b["goal"]: b["category"] for b in behaviors}
 
@@ -19,30 +27,40 @@ def compute_asr(results_dir: str = "results", session_range: tuple = None):
     sessions = []
     for f in files:
         idx = int(re.search(r"\d+", f).group())
-        if session_range and not (session_range[0] <= idx <= session_range[1]):
-            continue
+
+        if session_range is not None:
+            if not (session_range[0] <= idx <= session_range[1]):
+                continue
+        else:
+            if idx < min_session:
+                continue
+
         with open(os.path.join(results_dir, f), encoding="utf-8") as fh:
             data = json.load(fh)
-        sessions.append(data)
+        sessions.append((idx, data))
 
     if not sessions:
-        print("No sessions found in the specified range.")
+        print("Aucune session trouvée dans la plage demandée.")
         return
 
+    sessions.sort(key=lambda x: x[0])
+    indices = [idx for idx, _ in sessions]
+    session_data = [data for _, data in sessions]
+
     # Stats globales
-    total = len(sessions)
-    successes = sum(1 for s in sessions if s.get("success"))
+    total = len(session_data)
+    successes = sum(1 for s in session_data if s.get("success"))
     asr_global = 100.0 * successes / total
 
-    # Distribution des tours de succès
-    success_turns = [s["first_unsafe_turn"] for s in sessions
+    # Distribution des tours de premier succès
+    success_turns = [s["first_unsafe_turn"] for s in session_data
                      if s.get("success") and s.get("first_unsafe_turn")]
     avg_success_turn = (sum(success_turns) / len(success_turns)
                          if success_turns else None)
 
     # Stats par catégorie
     by_cat = defaultdict(lambda: {"total": 0, "success": 0})
-    for s in sessions:
+    for s in session_data:
         cat = goal_to_category.get(s["goal"], "Unknown")
         by_cat[cat]["total"] += 1
         if s.get("success"):
@@ -50,20 +68,22 @@ def compute_asr(results_dir: str = "results", session_range: tuple = None):
 
     # Affichage
     print(f"\n{'='*60}")
-    print(f"ASR Report — {total} sessions")
+    print(f"Rapport ASR — sessions test_{indices[0]:03d} à test_{indices[-1]:03d}")
     print(f"{'='*60}\n")
-    print(f"ASR global          : {asr_global:.1f}% ({successes}/{total})")
-    if avg_success_turn:
-        print(f"Tours moyen succès  : {avg_success_turn:.2f}")
+    print(f"Sessions incluses    : {total}")
+    print(f"ASR global           : {asr_global:.1f}% ({successes}/{total})")
+    if avg_success_turn is not None:
+        print(f"Tour moyen de succès : {avg_success_turn:.2f}")
     print(f"\nASR par catégorie :")
     for cat, stats in sorted(by_cat.items()):
         rate = 100.0 * stats["success"] / stats["total"]
-        print(f"  {cat:35s} {rate:5.1f}% "
-              f"({stats['success']}/{stats['total']})")
+        print(f"  {cat:35s} {rate:5.1f}%  ({stats['success']}/{stats['total']})")
 
 
 if __name__ == "__main__":
-    # Toutes les sessions
+    # Par défaut, ASR sur toutes les sessions à partir de test_035
     compute_asr()
 
-    # Ou : compute_asr(session_range=(29, 33))  pour un run spécifique
+    # Exemples d'usages alternatifs :
+    # compute_asr(min_session=50)
+    # compute_asr(session_range=(35, 44))   # un run précis
