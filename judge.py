@@ -48,6 +48,7 @@ def jbb_evaluate(behavior: str, response: str) -> dict:
         ],
         temperature=0.0,
         max_tokens=10,
+        enable_fallback=False,   # juge figé pour reproductibilité
     )
 
     verdict = raw.strip().lower()

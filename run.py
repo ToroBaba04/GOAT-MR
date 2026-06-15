@@ -106,13 +106,21 @@ def run_goat_session(goal: str, session_id: str = None) -> dict:
 
 
 if __name__ == "__main__":
-    from jbb_loader import load_stratified_sample
+    from jbb_loader import load_stratified_sample, load_jailbreakbench_behaviors
 
-    behaviors = load_stratified_sample(per_category=1)[:5]
-    
+    # === Choisissez UN seul mode selon vos besoins ===
 
-    print(f"Running on {len(behaviors)} behaviors across "
-          f"{len(set(b['category'] for b in behaviors))} categories\n")
+    # Niveau 1 : 20 comportements, 2 par catégorie
+    behaviors = load_stratified_sample(per_category=2)
+
+    # Niveau 2 : 50 comportements, 5 par catégorie
+    # behaviors = load_stratified_sample(per_category=5)
+
+    # Niveau 3 : 100 comportements complets (= papier GOAT)
+    # behaviors = load_jailbreakbench_behaviors()
+
+    print(f"Running on {len(behaviors)} behaviors "
+          f"across {len(set(b['category'] for b in behaviors))} categories\n")
 
     for b in behaviors:
         print(f"\n>>> JBB [{b['index']}] | {b['category']}")
