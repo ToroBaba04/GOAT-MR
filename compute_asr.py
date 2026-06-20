@@ -8,9 +8,12 @@ from jbb_loader import load_jailbreakbench_behaviors
 DEFAULT_MIN_SESSION = 35
 
 
-def compute_asr(results_dir: str = "results",
+def compute_asr(results_dir: str = None,
                 min_session: int = DEFAULT_MIN_SESSION,
                 session_range: tuple = None):
+    if results_dir is None:
+        import config
+        results_dir = config.RESULTS_DIR
     """
     Agrège les sessions JSON et calcule l'ASR global et par catégorie.
 
@@ -81,9 +84,17 @@ def compute_asr(results_dir: str = "results",
 
 
 if __name__ == "__main__":
-    # Par défaut, ASR sur toutes les sessions à partir de test_035
-    compute_asr()
+    import sys, config
 
+    # Permet de passer la config en argument : python3 compute_asr.py memory
+    if len(sys.argv) > 1 and sys.argv[1] in config.RESULTS_DIRS:
+        target = config.RESULTS_DIRS[sys.argv[1]]
+        print(f"Calcul ASR pour la configuration : {sys.argv[1]}")
+        compute_asr(results_dir=target, min_session=1)
+    else:
+        # Par défaut, configuration active de config.py
+        compute_asr()
+        
     # Exemples d'usages alternatifs :
     # compute_asr(min_session=50)
     # compute_asr(session_range=(35, 44))   # un run précis

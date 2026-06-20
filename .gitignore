@@ -3,12 +3,18 @@ venv/
 env/
 .env
 
-# Résultats des expériences (trop lourds et non nécessaires au code)
+# Résultats expérimentaux (4 configurations distinctes)
 results/
+results_baseline/
+results_memory/
+results_reflection/
+results_goat_mr/
+
+# Mémoire vectorielle persistante
+memory_store/
 
 # Clés API et config sensible
 config.py
-test_judge.py
 
 # Python
 __pycache__/
