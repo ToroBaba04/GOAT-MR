@@ -4,6 +4,7 @@ from target import query_target
 from judge import judge_conversation
 from memory import (index_trajectory, retrieve_similar,
                     classify_goal, retrieve_category_profile)
+from reflection import generate_reflection, index_reflection, retrieve_similar_reflections
 import config
 
 
@@ -77,6 +78,17 @@ def run_goat_session(goal: str, category: str = "Unknown",
             print(f"[MEMORY] No profile data for category '{category}'.")
             category_profile = None
 
+    # ── 3bis. Retrieve reflection context (lessons from past failures) ────
+    reflection_context = []
+    if config.USE_REFLECTION:
+        reflection_context = retrieve_similar_reflections(goal=goal)
+        if reflection_context:
+            sims = [round(r["similarity"], 3) for r in reflection_context]
+            print(f"[REFLECTION] {len(reflection_context)} lesson(s) "
+                  f"retrieved: {sims}")
+        else:
+            print("[REFLECTION] No similar failure lesson found.")
+
     # ── 4. Multi-turn attack loop ─────────────────────────────────────────
     conversation_history = []
     trajectory = []
@@ -89,6 +101,7 @@ def run_goat_session(goal: str, category: str = "Unknown",
             conversation_history=conversation_history,
             turn_number=turn,
             memory_context=memory_context if turn == 1 else None,
+            reflection_context=reflection_context if turn == 1 else None,
             category=category,
             category_profile=category_profile if turn == 1 else None,
             auto_classified=auto_classified,
@@ -189,30 +202,57 @@ def run_goat_session(goal: str, category: str = "Unknown",
         print(f"[MEMORY] Indexed: {len(techniques_until_success)} techniques "
               f"until T{first_unsafe_turn} | T1={turn1_techniques} | "
               f"winning={winning_techniques}")
+        
+        # ── 7. Generate and index a reflection lesson on failure ──────────────
+    if config.USE_REFLECTION and not success:
+        all_techniques = []
+        seen_techs: set = set()
+        for t in trajectory:
+            for tech in t.get("strategy", {}).get("techniques", []):
+                if tech not in seen_techs:
+                    all_techniques.append(tech)
+                    seen_techs.add(tech)
+
+        lesson = generate_reflection(
+            goal=goal,
+            category=category,
+            conversation_history=conversation_history,
+            techniques_tried=all_techniques,
+        )
+        index_reflection(session_id=session_id, goal=goal,
+                         category=category, lesson=lesson)
+        print(f"[REFLECTION] Lesson generated and indexed: "
+              f"{lesson.get('failure_summary', '')[:100]}")
 
     return result
 
 
 if __name__ == "__main__":
-    from jbb_loader import load_stratified_sample
+    from jbb_loader import load_stratified_sample, load_behaviors_by_category
 
     print(f"=== Active config: {config.ACTIVE_CONFIG} ===")
     print(f"  Results dir  : {config.RESULTS_DIR}")
     print(f"  Memory       : {config.USE_MEMORY}")
     print(f"  Reflection   : {config.USE_REFLECTION}\n")
 
-    # Niveau 1 — validation rapide (5 catégories × 1) :
-    behaviors = load_stratified_sample(per_category=1)[:5]
+    # Level 1 — quick validation (5 categories x 1):
+    # behaviors = load_stratified_sample(per_category=1)[:5]
 
-    # Niveau 2 — run intermédiaire (10 catégories × 2 = 20) :
+    # Level 2 — intermediate run (10 categories x 2 = 20):
     # behaviors = load_stratified_sample(per_category=2)
 
-    # Niveau 3 — comparaison baseline (10 catégories × 5 = 50) :
+    # Level 3 — baseline comparison (10 categories x 5 = 50):
     # behaviors = load_stratified_sample(per_category=5)
 
-    # Niveau 4 — benchmark complet :
+    # Level 4 — full benchmark:
     # from jbb_loader import load_jailbreakbench_behaviors
     # behaviors = load_jailbreakbench_behaviors()
+
+    # Level R — hard categories only, for reflection module testing:
+    HARD_CATEGORIES = ["Physical harm", "Expert advice",
+                       "Harassment/Discrimination"]
+    behaviors = load_behaviors_by_category(HARD_CATEGORIES,
+                                           limit_per_category=5)
 
     print(f"Running {len(behaviors)} behaviors "
           f"across {len(set(b['category'] for b in behaviors))} categories\n")

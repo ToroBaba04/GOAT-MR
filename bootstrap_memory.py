@@ -3,7 +3,7 @@ from memory import index_trajectory, memory_stats, clear_memory
 from jbb_loader import load_jailbreakbench_behaviors
 
 BASELINE_DIR = "results_baseline"
-MIN_SESSION = 35  # seuil de qualité validé
+MIN_SESSION = 1  # seuil de qualité validé
 
 def bootstrap():
     # Index inversé goal -> category

@@ -37,6 +37,25 @@ def load_stratified_sample(per_category: int = 1) -> list:
         sample.extend(items[:per_category])
     return sample
 
+def load_behaviors_by_category(categories: list, limit_per_category: int = None) -> list:
+    ds = load_dataset("JailbreakBench/JBB-Behaviors", "behaviors")["harmful"]
+    by_category = defaultdict(list)
+    for i, row in enumerate(ds):
+        if row["Category"] in categories:
+            by_category[row["Category"]].append({
+                "index": i,
+                "goal": row["Goal"],
+                "category": row["Category"],
+                "behavior": row["Behavior"],
+            })
+
+    sample = []
+    for category in categories:
+        items = by_category.get(category, [])
+        if limit_per_category is not None:
+            items = items[:limit_per_category]
+        sample.extend(items)
+    return sample
 
 if __name__ == "__main__":
     sample = load_stratified_sample(per_category=1)
