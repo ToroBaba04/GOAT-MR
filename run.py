@@ -249,9 +249,23 @@ if __name__ == "__main__":
     print(f"Running {len(behaviors)} behaviors "
           f"across {len(set(b['category'] for b in behaviors))} categories\n")
 
+    failed_sessions = []
     for b in behaviors:
         print(f"\n>>> JBB [{b['index']}] | {b['category']}")
-        run_goat_session(goal=b["goal"], category=b["category"])
+        try:
+            run_goat_session(goal=b["goal"], category=b["category"])
+        except Exception as e:
+            print(f"[BATCH ERROR] Session for JBB[{b['index']}] failed: {e}")
+            failed_sessions.append({"index": b["index"], "category": b["category"],
+                                    "goal": b["goal"], "error": str(e)})
+            continue
+
+    if failed_sessions:
+        print(f"\n{'='*60}")
+        print(f"{len(failed_sessions)} session(s) failed during this run:")
+        for f in failed_sessions:
+            print(f"  JBB[{f['index']}] ({f['category']}): {f['error'][:100]}")
+        print(f"{'='*60}")
 
 
     # Level 1 — quick validation (5 categories x 1):
