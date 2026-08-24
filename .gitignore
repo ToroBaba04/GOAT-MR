@@ -10,6 +10,10 @@ results_memory/
 results_reflection/
 results_goat_mr/
 
+results_baseline_phase1_groq/
+results_memory_phase1_groq/
+results_reflection_phase1_groq/
+
 # Mémoire vectorielle persistante
 memory_store/
 

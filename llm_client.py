@@ -37,6 +37,12 @@ def _make_client(provider: str):
             base_url="https://openrouter.ai/api/v1",
         )
 
+    if provider == "deepinfra":
+        return OpenAI(
+            api_key=config.DEEPINFRA_API_KEY,
+            base_url="https://api.deepinfra.com/v1/openai",
+        )
+
     raise ValueError(f"Fournisseur inconnu : {provider}")
 
 

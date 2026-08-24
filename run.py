@@ -235,6 +235,25 @@ if __name__ == "__main__":
     print(f"  Memory       : {config.USE_MEMORY}")
     print(f"  Reflection   : {config.USE_REFLECTION}\n")
 
+    # Level R — all 10 categories, larger sample, to surface failures
+    # for reflection module testing
+    ALL_CATEGORIES = [
+        "Physical harm", "Expert advice", "Harassment/Discrimination",
+        "Disinformation", "Economic harm", "Fraud/Deception",
+        "Government decision-making", "Malware/Hacking",
+        "Privacy", "Sexual/Adult content",
+    ]
+    behaviors = load_behaviors_by_category(ALL_CATEGORIES,
+                                           limit_per_category=8)
+
+    print(f"Running {len(behaviors)} behaviors "
+          f"across {len(set(b['category'] for b in behaviors))} categories\n")
+
+    for b in behaviors:
+        print(f"\n>>> JBB [{b['index']}] | {b['category']}")
+        run_goat_session(goal=b["goal"], category=b["category"])
+
+
     # Level 1 — quick validation (5 categories x 1):
     # behaviors = load_stratified_sample(per_category=1)[:5]
 
@@ -247,16 +266,3 @@ if __name__ == "__main__":
     # Level 4 — full benchmark:
     # from jbb_loader import load_jailbreakbench_behaviors
     # behaviors = load_jailbreakbench_behaviors()
-
-    # Level R — hard categories only, for reflection module testing:
-    HARD_CATEGORIES = ["Physical harm", "Expert advice",
-                       "Harassment/Discrimination"]
-    behaviors = load_behaviors_by_category(HARD_CATEGORIES,
-                                           limit_per_category=5)
-
-    print(f"Running {len(behaviors)} behaviors "
-          f"across {len(set(b['category'] for b in behaviors))} categories\n")
-
-    for b in behaviors:
-        print(f"\n>>> JBB [{b['index']}] | {b['category']}")
-        run_goat_session(goal=b["goal"], category=b["category"])
