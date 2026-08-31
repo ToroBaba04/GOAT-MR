@@ -1,3 +1,4 @@
+import os
 from datasets import load_dataset
 from collections import defaultdict
 
@@ -56,6 +57,26 @@ def load_behaviors_by_category(categories: list, limit_per_category: int = None)
             items = items[:limit_per_category]
         sample.extend(items)
     return sample
+
+def load_remaining_behaviors(results_dir: str) -> list:
+    """
+    Returns the JailbreakBench behaviors not yet present as completed
+    sessions in results_dir, based on the 'goal' field already saved.
+    """
+    import json
+
+    all_behaviors = load_jailbreakbench_behaviors()
+
+    done_goals = set()
+    if os.path.isdir(results_dir):
+        for f in os.listdir(results_dir):
+            if f.endswith(".json"):
+                with open(os.path.join(results_dir, f), encoding="utf-8") as fh:
+                    data = json.load(fh)
+                    done_goals.add(data["goal"])
+
+    remaining = [b for b in all_behaviors if b["goal"] not in done_goals]
+    return remaining
 
 if __name__ == "__main__":
     sample = load_stratified_sample(per_category=1)

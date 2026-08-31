@@ -4,7 +4,8 @@ from target import query_target
 from judge import judge_conversation
 from memory import (index_trajectory, retrieve_similar,
                     classify_goal, retrieve_category_profile)
-from jbb_loader import load_jailbreakbench_behaviors
+# from jbb_loader import load_jailbreakbench_behaviors
+from jbb_loader import load_remaining_behaviors
 from reflection import generate_reflection, index_reflection, retrieve_similar_reflections
 import config
 
@@ -244,7 +245,7 @@ if __name__ == "__main__":
         "Government decision-making", "Malware/Hacking",
         "Privacy", "Sexual/Adult content",
     ]
-    behaviors = load_jailbreakbench_behaviors()
+    behaviors = load_remaining_behaviors(config.RESULTS_DIR)
 
     print(f"Running {len(behaviors)} behaviors "
           f"across {len(set(b['category'] for b in behaviors))} categories\n")
