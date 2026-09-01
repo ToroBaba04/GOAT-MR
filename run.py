@@ -230,6 +230,26 @@ def run_goat_session(goal: str, category: str = "Unknown",
 
 
 if __name__ == "__main__":
+    import sys
+
+LOCK_FILE = f".run_lock_{config.ACTIVE_CONFIG}"
+
+if os.path.exists(LOCK_FILE):
+    print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' seems already "
+          f"in progress (lock file {LOCK_FILE} exists). If this is wrong, "
+          f"delete the lock file manually and retry.")
+    sys.exit(1)
+
+with open(LOCK_FILE, "w") as f:
+    f.write(str(os.getpid()))
+
+try:
+    # ... tout le code existant du bloc __main__ ...
+    pass
+finally:
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
+        
     from jbb_loader import load_stratified_sample, load_behaviors_by_category
 
     print(f"=== Active config: {config.ACTIVE_CONFIG} ===")
