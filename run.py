@@ -235,6 +235,12 @@ if __name__ == "__main__":
 LOCK_FILE = f".run_lock_{config.ACTIVE_CONFIG}"
 
 if os.path.exists(LOCK_FILE):
+    print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' is already "
+          f"in progress (lock file {LOCK_FILE} exists, PID inside). "
+          f"If you're sure no run is active, delete the lock file manually.")
+    with open(LOCK_FILE) as f:
+        print(f"[ERROR] Lock held by PID: {f.read().strip()}")
+    sys.exit(1)
     print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' seems already "
           f"in progress (lock file {LOCK_FILE} exists). If this is wrong, "
           f"delete the lock file manually and retry.")
@@ -243,9 +249,20 @@ if os.path.exists(LOCK_FILE):
 with open(LOCK_FILE, "w") as f:
     f.write(str(os.getpid()))
 
+if os.path.exists(LOCK_FILE):
+    os.remove(LOCK_FILE)
+
+
 try:
-    # ... tout le code existant du bloc __main__ ...
-    pass
+    for b in behaviors:
+        print(f"\n>>> JBB [{b['index']}] | {b['category']}")
+        try:
+            run_goat_session(goal=b["goal"], category=b["category"])
+        except Exception as e:
+            print(f"[BATCH ERROR] Session for JBB[{b['index']}] failed: {e}")
+            failed_sessions.append({"index": b["index"], "category": b["category"],
+                                    "goal": b["goal"], "error": str(e)})
+            continue
 finally:
     if os.path.exists(LOCK_FILE):
         os.remove(LOCK_FILE)

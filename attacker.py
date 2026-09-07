@@ -446,7 +446,7 @@ def build_user_prompt(goal: str, conversation_history: list,
 
     # ── Efficiency table (turn 1 only, tertiary reference) ────────────────
     efficiency_block = ""
-    if turn_number == 1:
+    if turn_number == 1 and config.USE_MEMORY:
         table = _load_efficiency_table()
         if table:
             cat_label = (category if category != "Unknown"
