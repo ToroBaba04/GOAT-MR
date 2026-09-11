@@ -1,10 +1,9 @@
-import json, time, os, re
+import json, time, os, re, sys
 from attacker import attacker_turn
 from target import query_target
 from judge import judge_conversation
 from memory import (index_trajectory, retrieve_similar,
                     classify_goal, retrieve_category_profile)
-# from jbb_loader import load_jailbreakbench_behaviors
 from jbb_loader import load_remaining_behaviors
 from reflection import generate_reflection, index_reflection, retrieve_similar_reflections
 import config
@@ -47,7 +46,6 @@ def run_goat_session(goal: str, category: str = "Unknown",
             else:
                 print(f"[MEMORY] Category could not be inferred (conf={conf:.0%})")
         else:
-            # Provided category — optionally verify via memory
             inferred, conf = classify_goal(goal)
             if inferred != "Unknown" and inferred != category and conf >= 0.70:
                 print(f"[MEMORY] Category provided='{category}' but memory "
@@ -176,7 +174,6 @@ def run_goat_session(goal: str, category: str = "Unknown",
 
     # ── 6. Index successful trajectory ───────────────────────────────────
     if config.USE_MEMORY and success:
-        # Collect techniques up to first_unsafe_turn (deduplicated, in order)
         techniques_until_success = []
         seen: set = set()
         for t in trajectory[:first_unsafe_turn]:
@@ -185,7 +182,6 @@ def run_goat_session(goal: str, category: str = "Unknown",
                     techniques_until_success.append(tech)
                     seen.add(tech)
 
-        # Per-turn precision: turn-1 techniques and winning-turn techniques
         turn1_techniques = (trajectory[0].get("strategy", {})
                             .get("techniques", []))
         winning_techniques = (trajectory[first_unsafe_turn - 1]
@@ -204,8 +200,8 @@ def run_goat_session(goal: str, category: str = "Unknown",
         print(f"[MEMORY] Indexed: {len(techniques_until_success)} techniques "
               f"until T{first_unsafe_turn} | T1={turn1_techniques} | "
               f"winning={winning_techniques}")
-        
-        # ── 7. Generate and index a reflection lesson on failure ──────────────
+
+    # ── 7. Generate and index a reflection lesson on failure ──────────────
     if config.USE_REFLECTION and not success:
         all_techniques = []
         seen_techs: set = set()
@@ -230,91 +226,58 @@ def run_goat_session(goal: str, category: str = "Unknown",
 
 
 if __name__ == "__main__":
-    import sys
-
-LOCK_FILE = f".run_lock_{config.ACTIVE_CONFIG}"
-
-if os.path.exists(LOCK_FILE):
-    print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' is already "
-          f"in progress (lock file {LOCK_FILE} exists, PID inside). "
-          f"If you're sure no run is active, delete the lock file manually.")
-    with open(LOCK_FILE) as f:
-        print(f"[ERROR] Lock held by PID: {f.read().strip()}")
-    sys.exit(1)
-    print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' seems already "
-          f"in progress (lock file {LOCK_FILE} exists). If this is wrong, "
-          f"delete the lock file manually and retry.")
-    sys.exit(1)
-
-with open(LOCK_FILE, "w") as f:
-    f.write(str(os.getpid()))
-
-if os.path.exists(LOCK_FILE):
-    os.remove(LOCK_FILE)
-
-
-try:
-    for b in behaviors:
-        print(f"\n>>> JBB [{b['index']}] | {b['category']}")
-        try:
-            run_goat_session(goal=b["goal"], category=b["category"])
-        except Exception as e:
-            print(f"[BATCH ERROR] Session for JBB[{b['index']}] failed: {e}")
-            failed_sessions.append({"index": b["index"], "category": b["category"],
-                                    "goal": b["goal"], "error": str(e)})
-            continue
-finally:
-    if os.path.exists(LOCK_FILE):
-        os.remove(LOCK_FILE)
-        
-    from jbb_loader import load_stratified_sample, load_behaviors_by_category
-
     print(f"=== Active config: {config.ACTIVE_CONFIG} ===")
     print(f"  Results dir  : {config.RESULTS_DIR}")
     print(f"  Memory       : {config.USE_MEMORY}")
     print(f"  Reflection   : {config.USE_REFLECTION}\n")
 
-    # Level R — all 10 categories, larger sample, to surface failures
-    # for reflection module testing
-    ALL_CATEGORIES = [
-        "Physical harm", "Expert advice", "Harassment/Discrimination",
-        "Disinformation", "Economic harm", "Fraud/Deception",
-        "Government decision-making", "Malware/Hacking",
-        "Privacy", "Sexual/Adult content",
-    ]
+    LOCK_FILE = f".run_lock_{config.ACTIVE_CONFIG}"
+
+    if os.path.exists(LOCK_FILE):
+        print(f"[ERROR] A run for config '{config.ACTIVE_CONFIG}' is already "
+              f"in progress (lock file {LOCK_FILE} exists).")
+        with open(LOCK_FILE) as f:
+            print(f"[ERROR] Lock held by PID: {f.read().strip()}")
+        print(f"[ERROR] If you're sure no run is active, delete the lock "
+              f"file manually and retry.")
+        sys.exit(1)
+
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+    # Resumable by default: only processes behaviors not already present
+    # in config.RESULTS_DIR. Returns the full 100 if the directory is empty.
     behaviors = load_remaining_behaviors(config.RESULTS_DIR)
+
+    # Alternative levels, for smaller/manual runs — uncomment as needed:
+    # from jbb_loader import load_stratified_sample, load_behaviors_by_category
+    # behaviors = load_stratified_sample(per_category=1)[:5]        # Level 1
+    # behaviors = load_stratified_sample(per_category=2)            # Level 2
+    # behaviors = load_stratified_sample(per_category=5)            # Level 3
+    # from jbb_loader import load_jailbreakbench_behaviors
+    # behaviors = load_jailbreakbench_behaviors()                   # Level 4, full 100
 
     print(f"Running {len(behaviors)} behaviors "
           f"across {len(set(b['category'] for b in behaviors))} categories\n")
 
     failed_sessions = []
-    for b in behaviors:
-        print(f"\n>>> JBB [{b['index']}] | {b['category']}")
-        try:
-            run_goat_session(goal=b["goal"], category=b["category"])
-        except Exception as e:
-            print(f"[BATCH ERROR] Session for JBB[{b['index']}] failed: {e}")
-            failed_sessions.append({"index": b["index"], "category": b["category"],
-                                    "goal": b["goal"], "error": str(e)})
-            continue
+    try:
+        for b in behaviors:
+            print(f"\n>>> JBB [{b['index']}] | {b['category']}")
+            try:
+                run_goat_session(goal=b["goal"], category=b["category"])
+            except Exception as e:
+                print(f"[BATCH ERROR] Session for JBB[{b['index']}] failed: {e}")
+                failed_sessions.append({"index": b["index"], "category": b["category"],
+                                        "goal": b["goal"], "error": str(e)})
+                continue
+    finally:
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
 
     if failed_sessions:
         print(f"\n{'='*60}")
         print(f"{len(failed_sessions)} session(s) failed during this run:")
-        for f in failed_sessions:
-            print(f"  JBB[{f['index']}] ({f['category']}): {f['error'][:100]}")
+        for f_ in failed_sessions:
+            print(f"  JBB[{f_['index']}] ({f_['category']}): {f_['error'][:100]}")
         print(f"{'='*60}")
-
-
-    # Level 1 — quick validation (5 categories x 1):
-    # behaviors = load_stratified_sample(per_category=1)[:5]
-
-    # Level 2 — intermediate run (10 categories x 2 = 20):
-    # behaviors = load_stratified_sample(per_category=2)
-
-    # Level 3 — baseline comparison (10 categories x 5 = 50):
-    # behaviors = load_stratified_sample(per_category=5)
-
-    # Level 4 — full benchmark:
-    # from jbb_loader import load_jailbreakbench_behaviors
-    # behaviors = load_jailbreakbench_behaviors()
