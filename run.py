@@ -54,9 +54,12 @@ def run_goat_session(goal: str, category: str = "Unknown",
     print(f"Category: {category}")
 
     # ── 2. Retrieve memory context (semantic similarity) ──────────────────
+    # exclude_goal=goal performs leave-one-out exclusion: the trajectory
+    # for this exact objective (if already in memory) is never returned
+    # to itself, preventing the attacker from retrieving its own answer.
     memory_context = []
     if config.USE_MEMORY:
-        memory_context = retrieve_similar(goal=goal)
+        memory_context = retrieve_similar(goal=goal, exclude_goal=goal)
         if memory_context:
             sims = [round(t["similarity"], 3) for t in memory_context]
             print(f"[MEMORY] {len(memory_context)} similar trajectory(ies): {sims}")
@@ -64,9 +67,10 @@ def run_goat_session(goal: str, category: str = "Unknown",
             print("[MEMORY] No similar trajectory found.")
 
     # ── 3. Retrieve category attack profile ───────────────────────────────
+    # Same leave-one-out exclusion applied at the category-aggregate level.
     category_profile = None
     if config.USE_MEMORY and category != "Unknown":
-        category_profile = retrieve_category_profile(category)
+        category_profile = retrieve_category_profile(category, exclude_goal=goal)
         if category_profile.get("total_entries", 0) > 0:
             t1r = category_profile["turn1_success_rate"]
             avg = category_profile["avg_first_unsafe_turn"]

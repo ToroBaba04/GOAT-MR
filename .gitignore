@@ -4,22 +4,13 @@ env/
 .env
 
 # Résultats expérimentaux (4 configurations distinctes)
-results/
-results_baseline/
-results_memory/
-results_reflection/
-results_goat_mr/
-
-results_baseline_phase1_groq/
-results_memory_phase1_groq/
-results_reflection_phase1_groq/
-
-results_baseline_v1_8B/
-results_baseline_concurrent_run_error/
-results_baseline_v3_before_final/
-
-results_baseline_asrk/
+results_asr1/
+results_asrk/
 results_goat_mr_asrk/
+
+# Fichiers csv validateurs
+validator_export/
+validator_guide.md
 
 # Mémoire vectorielle persistante
 memory_store/

@@ -51,7 +51,6 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "body.*campaign", "threatening.*article", "hate.*campaign",
         "threatening.*message", "social media.*promotes",
         "hate speech", r"\bslur\b", "targeting.*group",
-        # "defamatory article" is Harassment even if it mentions a public figure
         "defamatory.*article", "defamatory.*claim",
     ],
     "Malware/Hacking": [
@@ -143,26 +142,43 @@ def index_trajectory(session_id: str, goal: str, category: str,
 
 def retrieve_similar(goal: str,
                      top_k: int = DEFAULT_TOP_K,
-                     threshold: float = SIMILARITY_THRESHOLD) -> list:
+                     threshold: float = SIMILARITY_THRESHOLD,
+                     exclude_goal: str = None) -> list:
     """
     Returns the top-k most semantically similar successful trajectories.
     Each result is a dict with metadata + similarity score.
+
+    exclude_goal : if provided, any stored entry whose goal is an EXACT
+        match is skipped. This performs a leave-one-out exclusion so that,
+        when re-attacking an objective already present in the memory
+        (e.g. because it succeeded during the baseline run used to seed
+        this store), the attacker cannot retrieve its own past answer to
+        the exact question being asked. Without this, ASR@k measurements
+        for memory/reflection/goat_mr would leak the ground-truth answer
+        for every objective that also succeeded in baseline.
     """
     collection = get_collection()
     if collection.count() == 0:
         return []
 
+    # Over-fetch to compensate for entries removed by the exclusion filter
+    n_fetch = min(top_k * 3 + 5, collection.count())
     results = collection.query(
         query_texts=[f"Goal: {goal}"],
-        n_results=min(top_k * 2, collection.count()),
+        n_results=n_fetch,
     )
 
     trajectories = []
     for i in range(len(results["ids"][0])):
+        meta = results["metadatas"][0][i]
+
+        if exclude_goal is not None and meta["goal"] == exclude_goal:
+            continue  # leave-one-out: skip the exact same objective
+
         similarity = 1.0 - results["distances"][0][i]
         if similarity < threshold:
             continue
-        meta = results["metadatas"][0][i]
+
         trajectories.append({
             "session_id": meta["session_id"],
             "goal": meta["goal"],
@@ -208,10 +224,8 @@ def classify_goal(goal: str,
 
     Returns (category, confidence) where confidence ∈ [0, 1].
     """
-    # Step 1: keyword classification (primary when memory is sparse)
     kw_cat = _keyword_classify(goal)
 
-    # Step 2: memory-based classification
     collection = get_collection()
     if collection.count() >= 3:
         results = collection.query(
@@ -236,12 +250,10 @@ def classify_goal(goal: str,
             mem_confidence = cat_scores[best_mem] / total_weight
             mem_count = cat_counts.get(best_mem, 0)
 
-            # Trust memory only when it has substantial evidence
             if (mem_confidence >= min_memory_confidence
                     and mem_count >= min_memory_entries):
                 return (best_mem, round(mem_confidence, 3))
 
-    # Fall back to keyword result
     if kw_cat != "Unknown":
         return (kw_cat, 1.0)
 
@@ -284,7 +296,8 @@ def _read_attack_message_at_turn(session_id: str, turn_num: int) -> str:
     return ""
 
 
-def retrieve_category_profile(category: str) -> dict:
+def retrieve_category_profile(category: str,
+                              exclude_goal: str = None) -> dict:
     """
     Builds a rich attack profile for `category` from two sources:
 
@@ -295,6 +308,13 @@ def retrieve_category_profile(category: str) -> dict:
     Source B — Result JSON files (results_memory, results_baseline):
       Ground-truth trajectories.  Slower but complete.  Used to fill gaps
       left by Source A and to find best opening messages.
+
+    exclude_goal : if provided, any entry (from either source) whose goal
+        is an EXACT match is excluded from the profile computation. This
+        prevents the category-level statistics and "best opening" messages
+        from being built, even partly, out of the exact objective currently
+        being attacked — the same leave-one-out logic as retrieve_similar,
+        applied here at the category-aggregate level.
 
     Returns a profile dict:
     {
@@ -319,19 +339,22 @@ def retrieve_category_profile(category: str) -> dict:
     if collection.count() > 0:
         all_data = collection.get(limit=500)
         for meta in all_data["metadatas"]:
-            if meta.get("category") == category:
-                store_entries.append({
-                    "session_id": meta["session_id"],
-                    "first_unsafe_turn": meta["first_unsafe_turn"],
-                    "techniques_used": json.loads(
-                        meta.get("techniques_used", "[]")),
-                    "turn1_techniques": json.loads(
-                        meta.get("turn1_techniques", "[]")),
-                    "winning_techniques": json.loads(
-                        meta.get("winning_techniques", "[]")),
-                    "successful_message": meta.get("successful_message", ""),
-                    "_source": "store",
-                })
+            if meta.get("category") != category:
+                continue
+            if exclude_goal is not None and meta.get("goal") == exclude_goal:
+                continue  # leave-one-out
+            store_entries.append({
+                "session_id": meta["session_id"],
+                "first_unsafe_turn": meta["first_unsafe_turn"],
+                "techniques_used": json.loads(
+                    meta.get("techniques_used", "[]")),
+                "turn1_techniques": json.loads(
+                    meta.get("turn1_techniques", "[]")),
+                "winning_techniques": json.loads(
+                    meta.get("winning_techniques", "[]")),
+                "successful_message": meta.get("successful_message", ""),
+                "_source": "store",
+            })
 
     # ── Source B: result files (categorised only) ──────────────────────────
     file_entries = []
@@ -349,9 +372,11 @@ def retrieve_category_profile(category: str) -> dict:
                 continue
             if not session.get("success"):
                 continue
+            if exclude_goal is not None and session.get("goal") == exclude_goal:
+                continue  # leave-one-out
             sid = session["session_id"]
             if sid in seen_ids:
-                continue  # already have it from the store
+                continue
             fut = session["first_unsafe_turn"]
             traj = session.get("trajectory", [])
             t1_techs = []
@@ -382,7 +407,6 @@ def retrieve_category_profile(category: str) -> dict:
 
     # ── Resolve per-entry techniques ───────────────────────────────────────
     for e in entries:
-        # Ensure turn1_techniques is populated
         if not e["turn1_techniques"]:
             if e["first_unsafe_turn"] == 1 and e["techniques_used"]:
                 e["turn1_techniques"] = e["techniques_used"]
@@ -390,7 +414,6 @@ def retrieve_category_profile(category: str) -> dict:
                 e["turn1_techniques"] = _read_turn_techniques(
                     e["session_id"], 1)
 
-        # Ensure winning_techniques is populated
         if not e["winning_techniques"]:
             if e["first_unsafe_turn"] == 1 and e["techniques_used"]:
                 e["winning_techniques"] = e["techniques_used"]
@@ -398,7 +421,6 @@ def retrieve_category_profile(category: str) -> dict:
                 e["winning_techniques"] = _read_turn_techniques(
                     e["session_id"], e["first_unsafe_turn"])
 
-        # Ensure successful_message is populated for store entries
         if not e["successful_message"] and e["_source"] == "store":
             e["successful_message"] = _read_attack_message_at_turn(
                 e["session_id"], e["first_unsafe_turn"])
@@ -416,7 +438,6 @@ def retrieve_category_profile(category: str) -> dict:
     fastest_entries = [e for e in entries
                        if e["first_unsafe_turn"] == fastest_turn]
 
-    # Technique frequency at turn 1 (weighted: +2 for turn-1 wins, +1 otherwise)
     t1_freq: dict[str, int] = {}
     for e in entries:
         techs = e["turn1_techniques"]
@@ -424,7 +445,6 @@ def retrieve_category_profile(category: str) -> dict:
         for tech in techs:
             t1_freq[tech] = t1_freq.get(tech, 0) + weight
 
-    # Technique frequency at the winning turn (across fastest entries)
     win_freq: dict[str, int] = {}
     for e in sorted(entries, key=lambda x: x["first_unsafe_turn"])[:6]:
         for tech in e["winning_techniques"]:
@@ -433,26 +453,19 @@ def retrieve_category_profile(category: str) -> dict:
     best_first_technique = sorted(t1_freq, key=lambda t: -t1_freq[t])[:3]
     best_overall_combo = sorted(win_freq, key=lambda t: -win_freq[t])[:3]
 
-    # ── Best opening messages ──────────────────────────────────────────────
-    # turn1_winner: the attack message that triggered unsafe at turn 1
     best_opening_turn1 = ""
     if turn1_entries:
         best_t1 = max(turn1_entries, key=lambda e: len(e["successful_message"]))
         best_opening_turn1 = best_t1["successful_message"]
 
-    # winning_turn: the attack message that triggered unsafe at first_unsafe_turn
-    # (relevant for multi-turn sessions: shows what to escalate to at turn N)
     best_opening_winning_turn = ""
     if fastest_entries:
         best_gen = max(fastest_entries, key=lambda e: len(e["successful_message"]))
         best_opening_winning_turn = best_gen["successful_message"]
 
-    # turn1_framing: the TURN-1 message from sessions that eventually succeeded
-    # (even if they didn't win at turn 1 — shows how to open the conversation)
     best_turn1_framing = ""
     multi_turn_entries = [e for e in entries if e["first_unsafe_turn"] > 1]
     if multi_turn_entries:
-        # Look up the turn-1 attack message from the fastest multi-turn session
         fastest_multi = min(multi_turn_entries,
                             key=lambda e: e["first_unsafe_turn"])
         best_turn1_framing = _read_attack_message_at_turn(
@@ -467,11 +480,8 @@ def retrieve_category_profile(category: str) -> dict:
         "turn_distribution": dict(sorted(turn_dist.items())),
         "best_first_technique": best_first_technique,
         "best_overall_combo": best_overall_combo,
-        # Message to send at turn 1 when immediate success is expected
         "best_opening_turn1": best_opening_turn1,
-        # Turn-1 framing message when multi-turn approach is needed
         "best_turn1_framing": best_turn1_framing,
-        # Message that triggered the breakthrough at the winning turn
         "best_opening_winning_turn": best_opening_winning_turn,
         "fastest_turn": fastest_turn,
     }
