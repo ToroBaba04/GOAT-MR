@@ -1,8 +1,9 @@
 import json, os, re
+import config
 from memory import index_trajectory, memory_stats, clear_memory
 from jbb_loader import load_jailbreakbench_behaviors
 
-BASELINE_DIR = "results_baseline"
+BASELINE_DIR = config.RESULTS_DIRS["baseline"]
 MIN_SESSION = 1  # seuil de qualité validé
 
 def bootstrap():

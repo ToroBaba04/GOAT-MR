@@ -1,10 +1,11 @@
 import json, os, re
+import config
 from collections import defaultdict
 from memory import index_trajectory, memory_stats, clear_memory
 from reflection import generate_reflection, index_reflection, reflection_stats, clear_reflections
 from jbb_loader import load_jailbreakbench_behaviors
 
-SOURCE_DIR = "results_baseline_asrk"
+SOURCE_DIR = config.ASRK_RESULTS_DIRS["baseline"]
 CLEAR_BEFORE_BOOTSTRAP = True
 GENERATE_REFLECTIONS_FOR_TOTAL_FAILURES = True
 

@@ -6,7 +6,7 @@ import config
 
 def load_success_by_behavior(config_name: str) -> dict:
     """Returns {behavior_idx: bool} — True if ANY of the 10 rounds succeeded."""
-    results_dir = f"{config.RESULTS_DIRS[config_name]}_asrk"
+    results_dir = config.ASRK_RESULTS_DIRS[config_name]
     files = sorted(f for f in os.listdir(results_dir)
                    if re.match(r"asrk_b\d+_r\d+\.json", f))
 

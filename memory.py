@@ -3,6 +3,7 @@ import json
 import os
 
 import chromadb
+import config
 from chromadb.config import Settings
 
 # ── Store configuration ────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ DEFAULT_TOP_K = 3
 SIMILARITY_THRESHOLD = 0.4
 
 # Directories scanned to build category profiles
-_RESULTS_DIRS = ["results_memory", "results_baseline"]
+_RESULTS_DIRS = [config.RESULTS_DIRS["memory"], config.RESULTS_DIRS["baseline"]]
 
 # Keyword-based fallback for goal classification when memory is sparse
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {

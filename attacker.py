@@ -3,7 +3,7 @@ from llm_client import get_completion
 from techniques import TECHNIQUES
 
 # Directories to mine for technique effectiveness statistics
-_STATS_DIRS = ["results_memory", "results_baseline"]
+_STATS_DIRS = [config.RESULTS_DIRS["memory"], config.RESULTS_DIRS["baseline"]]
 # Module-level cache so the table is built once per process
 _efficiency_table_cache: dict | None = None
 

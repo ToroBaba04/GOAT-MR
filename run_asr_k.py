@@ -21,7 +21,7 @@ def freeze_indexation():
 
 
 def get_asrk_dir() -> str:
-    return f"{config.RESULTS_DIR}_asrk"
+    return config.ASRK_RESULTS_DIRS[config.ACTIVE_CONFIG]
 
 
 def format_eta(elapsed_s: float, done: int, total: int) -> str:

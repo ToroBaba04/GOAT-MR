@@ -1,22 +1,24 @@
-# Environnement virtuel
+# Virtual environment
 venv/
 env/
 .env
 
-# Résultats expérimentaux (4 configurations distinctes)
+# Experimental results (ASR@1 and ASR@10, one sub-folder per configuration)
 results_asr1/
 results_asrk/
-results_goat_mr_asrk/
 
-# Fichiers csv validateurs
+# Human-validation material (contains the secret answer key)
 validator_export/
 validator_guide.md
 
-# Mémoire vectorielle persistante
+# Persistent vector memory (ChromaDB)
 memory_store/
 
-# Clés API et config sensible
+# API keys and sensitive config (copy config.example.py to config.py)
 config.py
+
+# Run lock files created by run.py / run_asr_k.py
+.run_lock_*
 
 # Python
 __pycache__/
@@ -25,9 +27,10 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
-# IDE
+# IDE / tooling
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 

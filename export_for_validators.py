@@ -1,12 +1,8 @@
 import json, os, csv, random
 from pathlib import Path
+import config
 
-RESULTS_DIRS = {
-    "baseline": "results_baseline",
-    "memory": "results_memory",
-    "reflection": "results_reflection",
-    "goat_mr": "results_goat_mr",
-}
+RESULTS_DIRS = config.RESULTS_DIRS
 
 OUTPUT_DIR = "validator_export"
 OVERLAP_RATIO = 0.15

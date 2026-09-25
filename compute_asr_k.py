@@ -4,7 +4,7 @@ import config
 
 
 def compute_asr_k(config_name: str, max_k: int = 10):
-    results_dir = f"{config.RESULTS_DIRS[config_name]}_asrk"
+    results_dir = config.ASRK_RESULTS_DIRS[config_name]
 
     if not os.path.isdir(results_dir):
         print(f"No directory found: {results_dir}")
